@@ -2,7 +2,7 @@
 # Extension Attribute: Jamf Connect Components
 # Author: Ellie Romero
 # Version: 2.6.0
-# Last Update: 2024-12-24
+# Last Update: 01/05/2026
 #
 # Brief Description:
 #   This EA identifies which Jamf Connect components are installed post-3.0 split
