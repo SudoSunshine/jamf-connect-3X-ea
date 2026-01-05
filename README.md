@@ -1,4 +1,4 @@
-# Jamf Connect Extension Attribute
+# Jamf Connect Version (3.X)
 
 A Jamf Pro Extension Attribute for tracking Jamf Connect components across legacy and modern architectures.
 
