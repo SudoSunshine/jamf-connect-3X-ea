@@ -81,16 +81,16 @@ security authorizationdb read system.login.console | grep JamfConnectLogin
 **System State:**
 - SSP with JCMB 3.11.0
 - Old JCLW 2.45.1 in bundle
-- Legacy Jamf Connect.app leftover
+- Legacy Jamf Connect.app 2.45.1 leftover
 
 **Expected Output:**
 ```xml
-<r>JCMB SSP 3.11.0 (Active) (also found JCMB Classic 3.11.0 - Inactive)
+<r>JCMB SSP 3.11.0 (Active) (also found JCMB Classic 2.45.1 - Inactive)
 JCLW Classic 2.45.1 (Inactive)</r>
 ```
 
 **Critical Check:**
-- ✅ Legacy 3.11.0 should appear under JCMB (not JCLW)
+- ✅ Legacy 2.45.1 should appear under JCMB (as leftover cleanup candidate)
 - ✅ JCLW should NOT show "also found JCLW 3.11.0"
 - ✅ This validates the v2.6 critical bug fix
 
@@ -393,13 +393,14 @@ All tests should document:
 
 Example test log:
 ```
-Date: 2024-12-24
+Date: 2026-01-05
 Machine: MacBook Pro (M1)
 OS: macOS 15.2
-JC Version: SSP 2.13.0 + JCMB 3.11.0 + JCLW 2.45.1
+JC Version: SSP 2.13.0 + JCMB 3.11.0 + JCLW 2.45.1 + Legacy 2.45.1
 
 Test: Scenario 3 (SSP + Old JCLW + Legacy)
-Expected: JCMB SSP 3.11.0 (Active) (also found JCMB Classic 3.11.0 - Inactive) / JCLW Classic 2.45.1 (Inactive)
+Expected: JCMB SSP 3.11.0 (Active) (also found JCMB Classic 2.45.1 - Inactive) / JCLW Classic 2.45.1 (Inactive)
+Actual: JCMB SSP 3.11.0 (Active) (also found JCMB Classic 2.45.1 - Inactive) / JCLW Classic 2.45.1 (Inactive)
 Actual: JCMB SSP 3.11.0 (Active) (also found JCMB Classic 3.11.0 - Inactive) / JCLW Classic 2.45.1 (Inactive)
 Result: ✅ PASS
 ```
