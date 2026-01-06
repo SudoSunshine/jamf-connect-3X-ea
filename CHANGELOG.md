@@ -1,6 +1,6 @@
-# Jamf Connect EA - Version 2.6 Changelog
+# Jamf Connect 3.X EA - Version 2.6 Changelog
 
-## 🐛 v2.6.0 - Critical JCLW Detection Fix (December 24, 2024)
+## 🐛 v2.6.0 - Critical JCLW Detection Fix (Released: January 5, 2026)
 
 ### **Critical Bug Fixed:**
 
