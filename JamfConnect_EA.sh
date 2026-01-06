@@ -1,12 +1,12 @@
 #!/bin/sh
-# Extension Attribute: Jamf Connect Components
+# Extension Attribute: Jamf Connect 3.X Components
 # Author: Ellie Romero
 # Version: 2.6.0
-# Last Update: 01/05/2026
+# Last Update: 2026-01-05
 #
 # Brief Description:
 #   This EA identifies which Jamf Connect components are installed post-3.0 split
-#   and determines which JCLW is actively registered in the authorization database.
+#   and determines which components are actively registered.
 #
 #     • JCMB  = Jamf Connect Menu Bar
 #     • JCLW  = Jamf Connect Login Window
@@ -17,13 +17,13 @@
 #     - JCLW 3.0.0+ deployed separately to SecurityAgentPlugins
 #     - Legacy (≤2.45.1) had JCMB+JCLW bundled in single app
 #
-#   Output Examples (Basic):
-#       JCMB SSP 3.11.0
-#       JCLW Stand-alone 3.5.0
+#   Output Examples (Basic - Default Settings):
+#       JCMB SSP 3.11.0 (Active)
+#       JCLW Stand-alone 3.5.0 (Active)
 #
 #   Output Examples (All Features Enabled):
-#       JCMB SSP 3.11.0 (Detected in SSP 2.13.0) [2024-11-04]
-#       JCLW Classic 2.45.1 (Active) [2024-11-03] (also found JCLW Stand-alone 3.11.0 - Inactive)
+#       JCMB SSP 3.11.0 (Detected in SSP 2.13.0) (Active) [2025-11-04]
+#       JCLW Classic 2.45.1 (Inactive) [2025-03-19] (also found JCLW Stand-alone 3.5.0 - Active)
 #
 ################################
 # CONFIGURATION & PATHS
