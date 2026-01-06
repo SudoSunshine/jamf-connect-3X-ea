@@ -1,4 +1,4 @@
-# Jamf Connect Version 3.X
+# Jamf Connect Version 3.X EA
 
 A Jamf Pro Extension Attribute for tracking Jamf Connect components across legacy and modern architectures.
 
@@ -56,7 +56,7 @@ JCLW Stand-alone 3.5.0 (Active)
 
 ### Legacy with Cleanup Needed
 ```
-JCMB SSP 3.11.0 (Active) (also found JCMB Classic 3.11.0 - Inactive)
+JCMB SSP 3.11.0 (Active) (also found JCMB Classic 2.45.1 - Inactive)
 JCLW Classic 2.45.1 (Inactive)
 ```
 
