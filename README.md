@@ -2,6 +2,8 @@
 
 A Jamf Pro Extension Attribute for tracking Jamf Connect components across legacy and modern architectures.
 
+![Shell](https://img.shields.io/badge/shell-bash-yellow.svg)
+
 ## Background
 
 Starting with version 3.0, Jamf Connect's architecture changed significantly. The Menu Bar component moved into Self Service+, and the Login Window became standalone. Jamf Pro's current Extension Attribute template only checks the legacy path and reports "Does not exist" for modern deployments.
