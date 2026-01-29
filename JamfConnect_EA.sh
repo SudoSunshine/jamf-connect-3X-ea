@@ -1,33 +1,58 @@
 #!/bin/sh
-# Extension Attribute: Jamf Connect 3.X Components
+# Extension Attribute: Jamf Connect Components
 # Author: Ellie Romero
-# Version: 2.6.0
-# Last Update: 2026-01-05
+# Version: 2.6.1
+# Last Update: 2026-01-29
 #
-# Brief Description:
-#   This EA identifies which Jamf Connect components are installed post-3.0 split
-#   and determines which components are actively registered.
+# PURPOSE:
+#   Tracks Jamf Connect components across both legacy (pre-3.0 combined app) and
+#   modern (post-3.0 split) architectures. Addresses the limitation in Jamf Pro's
+#   current EA template which only detects the legacy path.
 #
+# COMPONENTS TRACKED:
 #     • JCMB  = Jamf Connect Menu Bar
 #     • JCLW  = Jamf Connect Login Window
 #     • SSP   = Self Service+ (container for JCMB)
 #
-#   Version 3.0+ Split Architecture:
+# VERSION 3.0+ ARCHITECTURE:
 #     - Self Service+ 2.0.0+ contains JCMB 3.0.0+
 #     - JCLW 3.0.0+ deployed separately to SecurityAgentPlugins
 #     - Legacy (≤2.45.1) had JCMB+JCLW bundled in single app
 #
-#   Output Examples (Basic - Default Settings):
-#       JCMB SSP 3.11.0 (Active)
-#       JCLW Stand-alone 3.5.0 (Active)
+# COMPONENT REPORTING CONFIGURATION:
+#   Configure which components to report by setting REPORT_JCMB and REPORT_JCLW
+#   below (lines 50-51). This allows using the same script for different purposes:
 #
-#   Output Examples (All Features Enabled):
-#       JCMB SSP 3.11.0 (Detected in SSP 2.13.0) (Active) [2025-11-04]
-#       JCLW Classic 2.45.1 (Inactive) [2025-03-19] (also found JCLW Stand-alone 3.5.0 - Active)
+#   Option 1 - Both Components (Default):
+#     REPORT_JCMB="true"   REPORT_JCLW="true"
+#     Use Case: Complete inventory in single EA
+#     Output: JCMB SSP 3.11.0 (Active)
+#             JCLW Stand-alone 3.5.0 (Active)
+#
+#   Option 2 - JCMB Only:
+#     REPORT_JCMB="true"   REPORT_JCLW="false"
+#     Use Case: Separate EA for Menu Bar tracking, SSP adoption metrics
+#     Output: JCMB SSP 3.11.0 (Active)
+#
+#   Option 3 - JCLW Only:
+#     REPORT_JCMB="false"  REPORT_JCLW="true"
+#     Use Case: Separate EA for Login Window tracking, identity compliance
+#     Output: JCLW Stand-alone 3.5.0 (Active)
+#
+#   TIP: For separate EAs, copy this script twice and configure each differently.
+#        This maintains one codebase with flexible deployment.
+#
+# OUTPUT EXAMPLES (ALL FEATURES ENABLED):
+#   JCMB SSP 3.11.0 (Detected in SSP 2.13.0) (Active) [2025-11-04]
+#   JCLW Classic 2.45.1 (Inactive) [2025-03-19] (also found JCLW Stand-alone 3.5.0 - Active)
 #
 ################################
 # CONFIGURATION & PATHS
 ################################
+
+# Component reporting (set to "true" or "false")
+REPORT_JCMB="true"             # Report Menu Bar component
+REPORT_JCLW="true"             # Report Login Window component
 
 # Output customization (set to "true" or "false")
 SHOW_SSP_VERSION="false"       # Show SSP version inline with JCMB
@@ -340,8 +365,27 @@ evaluate_jclw() {
 # 4 - Main execution
 ################################
 
-jcmb_fragment="$(evaluate_jcmb)"
-jclw_fragment="$(evaluate_jclw)"
+# Build output based on configuration
+output_lines=""
 
-echo "<result>${jcmb_fragment}
-${jclw_fragment}</result>"
+if [ "$REPORT_JCMB" = "true" ]; then
+  jcmb_fragment="$(evaluate_jcmb)"
+  output_lines="${jcmb_fragment}"
+fi
+
+if [ "$REPORT_JCLW" = "true" ]; then
+  jclw_fragment="$(evaluate_jclw)"
+  if [ -n "$output_lines" ]; then
+    output_lines="${output_lines}
+${jclw_fragment}"
+  else
+    output_lines="${jclw_fragment}"
+  fi
+fi
+
+# Output result (both, one, or none based on configuration)
+if [ -n "$output_lines" ]; then
+  echo "<result>${output_lines}</result>"
+else
+  echo "<result>No components configured for reporting</result>"
+fi
