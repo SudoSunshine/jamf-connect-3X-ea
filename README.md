@@ -102,8 +102,6 @@ REPORT_JCMB="true"
 REPORT_JCLW="false"
 ```
 **Output:** Only JCMB line  
-**Use case:** Separate EA for Menu Bar tracking, SSP adoption metrics  
-**How to deploy:** Create EA named "Jamf Connect Menu Bar" with these settings
 
 ---
 
@@ -113,30 +111,10 @@ REPORT_JCMB="false"
 REPORT_JCLW="true"
 ```
 **Output:** Only JCLW line  
-**Use case:** Separate EA for Login Window tracking, identity compliance  
-**How to deploy:** Create EA named "Jamf Connect Login Window" with these settings
 
 ---
 
-### Creating Multiple EAs from One Script
-
-**Workflow for separate component tracking:**
-
-1. **Create EA #1** - "Jamf Connect Menu Bar"
-   - Paste script
-   - Set `REPORT_JCMB="true"` and `REPORT_JCLW="false"`
-   - Save
-
-2. **Create EA #2** - "Jamf Connect Login Window"
-   - Paste same script
-   - Set `REPORT_JCMB="false"` and `REPORT_JCLW="true"`
-   - Save
-
-**Benefits:**
-- ✅ Maintain one script codebase
-- ✅ Easy to update both EAs
-- ✅ Cleaner Smart Group criteria
-- ✅ Separate reporting per component
+**Note:** While the script supports single-component reporting, the recommended approach is to keep both enabled and use separate Smart Groups for tracking (see Smart Group Examples below).
 
 ### Output Customization
 
@@ -225,122 +203,66 @@ Jamf Connect - Version (3.X) | like | JCMB SSP 3.11.0JCLW Stand-alone 3.5.0
 5. ✅ **Verify EA is populated** - Check computer inventory shows EA data
 6. ✅ **Ensure inventory is current** - Machines must have run inventory since EA was installed
 
-**Proven Working Patterns (from testing):**
-- ✅ `like "JCMB SSP"` - Finds machines with JCMB
-- ✅ `like "JCLW Stand-alone"` - Finds machines with standalone JCLW
-- ✅ `like "3.11.0"` - Finds machines with any component version 3.11.0
-- ✅ `like "(Active)"` - Finds machines with active components
-- ❌ `is "JCMB SSP 3.11.0"` - Will NOT work (requires exact match of entire field)
+### Recommended Smart Groups
 
-### Recommended Smart Groups to Create
+Create these Smart Groups to track Jamf Connect deployments. All use the Extension Attribute with operator `like` and the values shown:
 
-These Smart Groups provide practical value for Jamf Connect management without requiring constant maintenance:
+#### Essential Tracking
+**1. JCMB in SSP** - `JCMB SSP`  
+Modern Menu Bar deployments
 
-#### 1. JCMB in Self Service+ (Modern Deployment)
-```
-Name: Jamf Connect - JCMB in SSP
-Criteria: Jamf Connect - Version (3.X) | like | JCMB SSP
-Purpose: Track modern JCMB deployments across all versions
-```
+**2. JCLW Standalone** - `JCLW Stand-alone`  
+Modern Login Window deployments
 
-#### 2. Standalone JCLW (Modern Deployment)
-```
-Name: Jamf Connect - JCLW Standalone
-Criteria: Jamf Connect - Version (3.X) | like | JCLW Stand-alone
-Purpose: Track modern JCLW deployments across all versions
-```
+**3. Active Components** - `(Active)`  
+All functioning components
 
-#### 3. Legacy Components Still Deployed
-```
-Name: Jamf Connect - Legacy Components
-Criteria: Jamf Connect - Version (3.X) | like | Classic
-Purpose: Identify machines that haven't migrated to 3.0+ architecture
-```
+**4. Legacy Components** - `Classic`  
+Machines needing migration to 3.0+
 
-#### 4. Active Components (All Types)
-```
-Name: Jamf Connect - Active Components
-Criteria: Jamf Connect - Version (3.X) | like | (Active)
-Purpose: All machines with functioning Jamf Connect components
-```
+#### Problem Detection
+**5. Cleanup Needed** - `also found`  
+Multi-version installations requiring cleanup
 
-#### 5. Multi-Version Cleanup Needed
-```
-Name: Jamf Connect - Cleanup Needed
-Criteria: Jamf Connect - Version (3.X) | like | also found
-Purpose: Machines with leftover old versions needing cleanup
-```
+**6. Not Installed** - `NotInstalled`  
+Machines without Jamf Connect
 
-#### 6. SSP Migration Complete
-```
-Name: Jamf Connect - SSP Migration Complete
-Criteria 1: Jamf Connect - Version (3.X) | like | JCMB SSP
-AND
-Criteria 2: Jamf Connect - Version (3.X) | like | JCLW Stand-alone
-Purpose: Machines fully migrated to modern architecture
-```
+**7. No Active JCLW** - `JCLW` AND `(Inactive)`  
+Identity integration broken
 
-#### 7. No Active Login Window
-```
-Name: Jamf Connect - No Active JCLW
-Criteria 1: Jamf Connect - Version (3.X) | like | JCLW
-AND
-Criteria 2: Jamf Connect - Version (3.X) | like | (Inactive)
-Purpose: Identity integration broken or disabled
-```
+#### Migration Tracking
+**8. SSP Migration Complete** - `JCMB SSP` AND `JCLW Stand-alone`  
+Fully modernized deployments
 
-#### 8. Machines WITHOUT Jamf Connect
-```
-Name: Jamf Connect - Not Installed
-Criteria: Jamf Connect - Version (3.X) | like | NotInstalled
-Purpose: Machines that don't have Jamf Connect installed at all
-```
+**9. Missing JCLW** - `JCMB` AND `JCLW None NotInstalled`  
+Menu Bar deployed, Login Window missing
 
-#### 9. JCMB Installed, JCLW Missing
-```
-Name: Jamf Connect - Missing Login Window
-Criteria 1: Jamf Connect - Version (3.X) | like | JCMB
-AND
-Criteria 2: Jamf Connect - Version (3.X) | like | JCLW None NotInstalled
-Purpose: Menu Bar deployed but identity integration missing
-```
+**10. Missing JCMB** - `JCLW` AND `JCMB None NotInstalled`  
+Login Window deployed, Menu Bar missing
 
-#### 10. JCLW Installed, JCMB Missing
-```
-Name: Jamf Connect - Missing Menu Bar
-Criteria 1: Jamf Connect - Version (3.X) | like | JCLW
-AND
-Criteria 2: Jamf Connect - Version (3.X) | like | JCMB None NotInstalled
-Purpose: Identity integration deployed but menu bar missing
-```
-
-**Pro Tip:** These Smart Groups use short, generic values that work across all Jamf Connect versions - no updates needed when new versions release!
+**Note:** All criteria use `Jamf Connect - Version (3.X) | like | [value]`. These short values work across all versions—no maintenance required when Jamf Connect updates.
 
 ## Architecture Details
 
-### Pre-3.0 (≤ 2.45.1)
-- Combined app at `/Applications/Jamf Connect.app/`
-- JCMB and JCLW bundled together
+### Jamf Connect Architecture Changes in 3.0
 
-### Post-3.0 (≥ 3.0.0)
-- JCMB in Self Service+ at `/Applications/Self Service+.app/Contents/MacOS/Jamf Connect.app/`
-- JCLW standalone at `/Library/Security/SecurityAgentPlugins/JamfConnectLogin.bundle/`
+**Pre-3.0 (≤ 2.45.1):** Combined app with JCMB + JCLW at `/Applications/Jamf Connect.app/`
 
-### Detection Logic
+**Post-3.0 (≥ 3.0.0):**
+- JCMB → Embedded in Self Service+ at `/Applications/Self Service+.app/.../Jamf Connect.app/`
+- JCLW → Standalone at `/Library/Security/SecurityAgentPlugins/JamfConnectLogin.bundle/`
 
-**JCMB:**
-- Checks SSP path (modern)
-- Checks legacy path (pre-3.0 or leftover)
-- Daemon check: `launchctl list | grep com.jamf.connect.daemon`
+The script detects both architectures and correctly identifies which components are present and active.
 
-**JCLW:**
-- Checks bundle path (all versions)
-- Checks legacy path (only if version ≤ 2.45.1)
-- AuthDB check: `security authorizationdb read system.login.console`
+## Limitations
+
+- Detects component presence and version, but does not verify configuration validity (IdP settings, sync state)
+- Active status detection relies on system daemons/authorization database; edge cases may exist
+- Requires root privileges (runs during inventory collection)
 
 ## Testing
 
-See [TESTING.md](TESTING.md) for comprehensive testing procedures.
+Tested with Jamf Pro 11.24.0, Jamf Connect 2.45.1-3.12.0, and macOS 13.x-15.x. See [CHANGELOG](CHANGELOG.md) for detailed testing information.
 
 ## Version History
 
@@ -348,7 +270,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 
 ## Contributing
 
-Contributions welcome! Please test changes on multiple Jamf Connect versions and update documentation accordingly.
+Thank you to my teammates and Mac admin community for the feedback!
 
 ## License
 
