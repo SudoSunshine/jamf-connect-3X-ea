@@ -1,6 +1,159 @@
-# Jamf Connect 3.X EA - Version 2.6 Changelog
+# Jamf Connect EA - Changelog
 
-## 🐛 v2.6.0 - Critical JCLW Detection Fix (Released: January 5, 2026)
+All notable changes to this project will be documented in this file.
+
+---
+
+## 🎉 v2.6.1 - Production Ready (Released: January 29, 2026)
+
+### **Critical Bug Fixes:**
+
+#### **1. Newline Character in Multi-Component Output**
+
+**Problem:**
+When reporting both JCMB and JCLW, the EA was outputting literal `\n` instead of an actual newline character, causing output to display as a single line:
+```
+JCMB SSP 3.11.0JCLW Stand-alone 3.5.0  ❌ (Wrong - one line)
+```
+
+**Fix:**
+Changed string concatenation to use actual newline character:
+```bash
+# Before (v2.6.0):
+output_lines="${output_lines}\n${jclw_fragment}"  # Literal \n
+
+# After (v2.6.1):
+output_lines="${output_lines}
+${jclw_fragment}"  # Actual newline
+```
+
+**Result:**
+```
+JCMB SSP 3.11.0 (Active)
+JCLW Stand-alone 3.5.0 (Active)  ✅ (Correct - two lines)
+```
+
+**Impact:**
+- Jamf Pro now displays EA properly (two lines, not one)
+- Smart Group "like" operator now works across both lines
+- Advanced Searches now work correctly
+
+#### **2. JCLW Version Already Fixed in v2.6.0**
+The JCLW 3.11.0 false positive was resolved in v2.6.0 and remains fixed in v2.6.1.
+
+---
+
+### **Major Documentation Improvements:**
+
+#### **Best Practices Section Added**
+New section explaining Smart Group value selection:
+- ❌ **DON'T:** Match entire lines (e.g., `like "JCMB SSP 3.12.0-rc.4 (Active)"`) - breaks on version updates
+- ✅ **DO:** Match component types (e.g., `like "JCMB SSP"`) - works across all versions
+- ✅ **DO:** Match status when needed (e.g., `like "(Active)"`)
+- ✅ **DO:** Match specific versions only when necessary (e.g., `like "3.12.0"`)
+
+**Key Principle:** Use the shortest substring that identifies what you need. This keeps Smart Groups flexible and reduces maintenance overhead.
+
+#### **10 Recommended Smart Groups**
+Added production-ready Smart Group examples with complete criteria:
+1. JCMB in Self Service+ (Modern Deployment)
+2. Standalone JCLW (Modern Deployment)
+3. Legacy Components Still Deployed
+4. Active Components (All Types)
+5. Multi-Version Cleanup Needed
+6. SSP Migration Complete
+7. No Active Login Window
+8. Machines WITHOUT Jamf Connect (new)
+9. JCMB Installed, JCLW Missing (new)
+10. JCLW Installed, JCMB Missing (new)
+
+Each includes suggested name, exact criteria, and purpose.
+
+#### **Operator Behavior Clarified**
+Enhanced documentation based on production testing:
+- **"like" operator (RECOMMENDED):** Works with multi-line EA output ✅
+- **"is" operator (AVOID):** Requires exact match of ENTIRE field (both lines + newline) ❌
+- Confirmed through extensive testing with Smart Groups and Advanced Searches
+
+#### **NotInstalled Output Documented**
+Added examples and Smart Group patterns for machines without Jamf Connect:
+```
+JCMB None NotInstalled
+JCLW None NotInstalled
+```
+
+This enables tracking of:
+- Machines needing initial deployment
+- Incomplete installations (JCMB without JCLW, or vice versa)
+- Installation coverage across fleet
+
+#### **ONE EA → TWO Smart Groups Strategy**
+Documented the optimal deployment approach:
+- Deploy ONE Extension Attribute script (configured for both components)
+- Create TWO or more Smart Groups (one for JCMB, one for JCLW)
+- Provides maximum flexibility with minimal maintenance
+
+#### **Documentation Cleanup**
+- Removed duplicate "Working Smart Group Examples" section
+- Consolidated into comprehensive "Recommended Smart Groups to Create"
+- Removed all `recon` commands from Quick Start
+- Enhanced troubleshooting guidance with proven patterns
+
+---
+
+### **Testing & Validation:**
+
+**Production Testing Completed:**
+- ✅ Single-component configuration (JCMB only, JCLW only)
+- ✅ Both-component configuration (default)
+- ✅ "is" operator behavior confirmed (works with single-line, fails with multi-line)
+- ✅ "like" operator behavior confirmed (works in all scenarios)
+- ✅ Advanced Searches validated (same operators as Smart Groups)
+- ✅ NotInstalled output validated
+- ✅ Newline character fix verified
+
+**Environments Tested:**
+- Jamf Pro 11.24.0
+- Jamf Connect versions 2.45.1 through 3.12.0-rc.4
+- Self Service+ versions 2.0.0 through 2.13.0
+- macOS 13.x through 15.x
+- Both legacy and modern deployment architectures
+
+---
+
+### **Changed:**
+- Default configuration reports both JCMB and JCLW components for maximum visibility and flexibility
+
+### **Migration from v2.6.0:**
+
+#### **Required Actions:**
+1. Replace Extension Attribute script in Jamf Pro with v2.6.1
+2. Run inventory update on test machines: `sudo jamf recon`
+3. Verify EA output displays as TWO lines (not one)
+4. Verify Smart Groups using "like" operator work correctly
+5. Deploy to production
+
+#### **No Breaking Changes:**
+- Configuration variables unchanged
+- Output format identical (except now properly formatted)
+- Smart Groups continue working
+- No policy or profile changes needed
+
+#### **What You'll See:**
+**Before (v2.6.0):**
+```
+JCMB SSP 3.11.0JCLW Stand-alone 3.5.0  (one line - broken)
+```
+
+**After (v2.6.1):**
+```
+JCMB SSP 3.11.0 (Active)
+JCLW Stand-alone 3.5.0 (Active)  (two lines - correct)
+```
+
+---
+
+## 🐛 v2.6.0 - Critical JCLW Detection Fix (Released: January 28, 2026)
 
 ### **Critical Bug Fixed:**
 
