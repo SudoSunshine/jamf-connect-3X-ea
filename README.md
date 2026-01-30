@@ -1,4 +1,4 @@
-# Jamf Connect 3X Extension Attribute
+# Jamf Connect Extension Attribute
 
 ![Shell](https://img.shields.io/badge/shell-bash-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -92,6 +92,8 @@ SHOW_MULTI_VERSION="true"       # Show multi-version alerts
 
 The EA outputs TWO lines (one for JCMB, one for JCLW). The "is" operator requires exact match of both lines, so it won't work. Use "like" to match individual components.
 
+**Note:** You cannot search for both components in a single criteria (e.g., `like "JCMB SSP 3.11.0 JCLW Classic 2.45.1"`). The newline between lines breaks the match. Use separate Smart Groups to track each component.
+
 ## Architecture Details
 
 ### Jamf Connect Architecture Changes in 3.0
@@ -120,7 +122,7 @@ See [CHANGELOG.md](CHANGELOG.md) for complete version history.
 
 ## Contributing
 
-Thank you to my teammates, Ben and Josh! As well as all other Mac admins testing.
+Contributions welcome! Please test changes on multiple Jamf Connect versions and update documentation accordingly.
 
 ## License
 
