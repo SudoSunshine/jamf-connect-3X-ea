@@ -1,4 +1,4 @@
-# Jamf Connect Extension Attribute
+# Jamf Connect 3X Extension Attribute
 
 ![Shell](https://img.shields.io/badge/shell-bash-yellow.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
