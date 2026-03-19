@@ -1,58 +1,31 @@
 #!/bin/sh
 # Extension Attribute: Jamf Connect Components
 # Author: Ellie Romero
-# Version: 2.6.1
-# Last Update: 2026-01-29
+# Version: 2.7.0
+# Last Update: 2026-03-19
 #
-# PURPOSE:
-#   Tracks Jamf Connect components across both legacy (pre-3.0 combined app) and
-#   modern (post-3.0 split) architectures. Addresses the limitation in Jamf Pro's
-#   current EA template which only detects the legacy path.
+# Tracks Jamf Connect components (JCMB, JCLW) and Self Service+ across
+# legacy (≤2.45.1) and modern (3.0+) architectures.
 #
-# COMPONENTS TRACKED:
-#     • JCMB  = Jamf Connect Menu Bar
-#     • JCLW  = Jamf Connect Login Window
-#     • SSP   = Self Service+ (container for JCMB)
+# Components:
+#   JCMB = Jamf Connect Menu Bar (in SSP 2.0+)
+#   JCLW = Jamf Connect Login Window (standalone 3.0+)
+#   SSP  = Self Service+ (container for JCMB)
 #
-# VERSION 3.0+ ARCHITECTURE:
-#     - Self Service+ 2.0.0+ contains JCMB 3.0.0+
-#     - JCLW 3.0.0+ deployed separately to SecurityAgentPlugins
-#     - Legacy (≤2.45.1) had JCMB+JCLW bundled in single app
+# Configure REPORT_JCMB, REPORT_JCLW, and REPORT_SSP below to control output.
+# See README for full documentation and Smart Group examples.
 #
-# COMPONENT REPORTING CONFIGURATION:
-#   Configure which components to report by setting REPORT_JCMB and REPORT_JCLW
-#   below (lines 50-51). This allows using the same script for different purposes:
-#
-#   Option 1 - Both Components (Default):
-#     REPORT_JCMB="true"   REPORT_JCLW="true"
-#     Use Case: Complete inventory in single EA
-#     Output: JCMB SSP 3.11.0 (Active)
-#             JCLW Stand-alone 3.5.0 (Active)
-#
-#   Option 2 - JCMB Only:
-#     REPORT_JCMB="true"   REPORT_JCLW="false"
-#     Use Case: Separate EA for Menu Bar tracking, SSP adoption metrics
-#     Output: JCMB SSP 3.11.0 (Active)
-#
-#   Option 3 - JCLW Only:
-#     REPORT_JCMB="false"  REPORT_JCLW="true"
-#     Use Case: Separate EA for Login Window tracking, identity compliance
-#     Output: JCLW Stand-alone 3.5.0 (Active)
-#
-#   TIP: For separate EAs, copy this script twice and configure each differently.
-#        This maintains one codebase with flexible deployment.
-#
-# OUTPUT EXAMPLES (ALL FEATURES ENABLED):
-#   JCMB SSP 3.11.0 (Detected in SSP 2.13.0) (Active) [2025-11-04]
-#   JCLW Classic 2.45.1 (Inactive) [2025-03-19] (also found JCLW Stand-alone 3.5.0 - Active)
+# v2.7.0 — Fix SSP detection broken by Jamf Pro 11.25 custom branding (PI-1077).
+#           SSP app bundle can be renamed on disk (e.g., "SmartAsset Self Service.app").
+#           Now detects SSP via CFBundleIdentifier instead of hardcoded path.
 #
 ################################
 # CONFIGURATION & PATHS
 ################################
-
 # Component reporting (set to "true" or "false")
 REPORT_JCMB="true"             # Report Menu Bar component
 REPORT_JCLW="true"             # Report Login Window component
+REPORT_SSP="false"             # Report Self Service+ version only
 
 # Output customization (set to "true" or "false")
 SHOW_SSP_VERSION="false"       # Show SSP version inline with JCMB
@@ -63,18 +36,22 @@ SHOW_TIMESTAMPS="false"        # Show installation dates
 # Constants
 THRESHOLD="2.45.1"             # Classic vs modern cutoff
 
-# File paths
+# Bundle identifiers (stable across custom branding renames — Jamf Pro 11.25+)
+SSP_BUNDLE_ID="com.jamf.selfserviceplus"
+CLASSIC_SS_BUNDLE_ID="com.jamfsoftware.selfservice.mac"
+
+# File paths — SSP_APP_PLIST and SSP_MB_PLIST are overwritten at runtime by
+# resolve_ssp_paths() to handle custom-branded app names.
 SSP_APP_PLIST="/Applications/Self Service+.app/Contents/Info.plist"
+CLASSIC_SS_PLIST="/Applications/Self Service.app/Contents/Info.plist"
 SSP_MB_PLIST="/Applications/Self Service+.app/Contents/MacOS/Jamf Connect.app/Contents/Info.plist"
 LEGACY_MB_PLIST="/Applications/Jamf Connect.app/Contents/Info.plist"
 JCLW_BUNDLE_PLIST="/Library/Security/SecurityAgentPlugins/JamfConnectLogin.bundle/Contents/Info.plist"
 LEGACY_JC_PLIST="/Applications/Jamf Connect.app/Contents/Info.plist"
 
-
 ################################
 # Helper functions
 ################################
-
 # 1.1 - Version comparison (returns true if v1 > v2)
 version_gt() {
   v1="$1"; v2="$2"
@@ -103,13 +80,13 @@ check_jcmb_active() {
     echo "ssp"
     return
   fi
-  
+
   # Check if Classic/legacy daemon is loaded
   if launchctl list 2>/dev/null | grep -q "com.jamf.connect.daemon$"; then
     echo "legacy"
     return
   fi
-  
+
   # No JCMB daemon loaded
   echo "none"
 }
@@ -118,7 +95,7 @@ check_jcmb_active() {
 check_jclw_active() {
   # Get the full authdb mechanisms list
   authdb_output=$(security authorizationdb read system.login.console 2>/dev/null)
-  
+
   # Check if JamfConnectLogin mechanism is present
   if echo "$authdb_output" | grep -qi "JamfConnectLogin"; then
     # Try to detect SecurityAgentPlugins path (modern bundle)
@@ -126,26 +103,69 @@ check_jclw_active() {
       echo "bundle"
       return
     fi
-    
+
     # Try to detect /Applications/Jamf Connect.app path (legacy)
     if echo "$authdb_output" | grep -q "Applications/Jamf Connect"; then
       echo "legacy"
       return
     fi
-    
-    # JamfConnectLogin present but can't determine exact path
-    # This shouldn't happen, but default to bundle (modern standard)
+
+    # JamfConnectLogin present but can't determine exact path — default to bundle
     echo "bundle"
   else
-    # No JamfConnectLogin registered at all
     echo "none"
   fi
+}
+
+# 1.6 - Find an app in /Applications by CFBundleIdentifier
+#        Handles Jamf Pro 11.25+ custom branding that renames the .app bundle on disk.
+#        Uses mdfind (Spotlight) first for speed; falls back to a direct scan.
+find_app_by_bundle_id() {
+  bundle_id="$1"
+
+  # Try Spotlight — fast, but may be off or unindexed on some managed Macs.
+  # Filter to top-level /Applications/*.app paths only (avoids nested bundles).
+  mdfind_result=$(/usr/bin/mdfind \
+    "kMDItemCFBundleIdentifier == '${bundle_id}'" \
+    -onlyin /Applications 2>/dev/null \
+    | grep -E "^/Applications/[^/]+\.app$" \
+    | head -1)
+  if [ -n "$mdfind_result" ]; then
+    echo "$mdfind_result"
+    return
+  fi
+
+  # Fallback: scan /Applications directly (handles Spotlight disabled/stale index)
+  for app_path in /Applications/*.app; do
+    plist="${app_path}/Contents/Info.plist"
+    if [ -f "$plist" ]; then
+      bid=$(/usr/bin/defaults read "$plist" CFBundleIdentifier 2>/dev/null)
+      if [ "$bid" = "$bundle_id" ]; then
+        echo "$app_path"
+        return
+      fi
+    fi
+  done
+}
+
+# 1.7 - Resolve SSP-related paths at runtime
+#        Must be called once before any evaluate_* functions.
+#        Overwrites SSP_APP_PLIST and SSP_MB_PLIST with the actual path on disk,
+#        regardless of what the app is named due to custom branding.
+resolve_ssp_paths() {
+  ssp_app_path="$(find_app_by_bundle_id "$SSP_BUNDLE_ID")"
+
+  if [ -n "$ssp_app_path" ]; then
+    SSP_APP_PLIST="${ssp_app_path}/Contents/Info.plist"
+    SSP_MB_PLIST="${ssp_app_path}/Contents/MacOS/Jamf Connect.app/Contents/Info.plist"
+  fi
+  # If not found, SSP_APP_PLIST/SSP_MB_PLIST remain at their hardcoded defaults,
+  # which will simply not resolve — safe no-op behaviour.
 }
 
 ################################
 # Version classifying functions
 ################################
-
 # 2.1 - Classify JCMB as SSP or Classic
 classify_jcmb() {
   v="$1"
@@ -161,18 +181,16 @@ classify_jclw() {
 ################################
 # Component evaluation functions
 ################################
-
 # 3.1 - Get Self Service+ version
 get_ssp_version() {
   ssp_ver=""
-  
+
   if [ -f "$SSP_APP_PLIST" ]; then
     ssp_ver="$(get_ver "$SSP_APP_PLIST")"
   fi
-  
+
   echo "$ssp_ver"
 }
-
 
 # 3.2 - Evaluate Menu Bar (JCMB)
 evaluate_jcmb() {
@@ -183,25 +201,25 @@ evaluate_jcmb() {
   legacy_ver=""
   ssp_version=""
   active_daemon=""
-  
+
   # Get SSP version for inline display
   ssp_version="$(get_ssp_version)"
-  
+
   # Check which daemon is loaded (if status enabled)
   if [ "$SHOW_ACTIVE_STATUS" = "true" ]; then
     active_daemon="$(check_jcmb_active)"  # Returns: "ssp", "legacy", or "none"
   fi
-  
+
   # Check SSP location
   if [ -f "$SSP_MB_PLIST" ]; then
     ssp_ver="$(get_ver "$SSP_MB_PLIST")"
   fi
-  
+
   # Check legacy location
   if [ -f "$LEGACY_MB_PLIST" ]; then
     legacy_ver="$(get_ver "$LEGACY_MB_PLIST")"
   fi
-  
+
   # Determine primary version and type
   if [ -n "$ssp_ver" ]; then
     jcmb_ver="$ssp_ver"
@@ -212,57 +230,49 @@ evaluate_jcmb() {
     jcmb_type="$(classify_jcmb "$jcmb_ver")"
     jcmb_plist="$LEGACY_MB_PLIST"
   fi
-  
+
   # Output result
   if [ -z "$jcmb_ver" ]; then
     echo "JCMB None NotInstalled"
   else
     output="JCMB ${jcmb_type} ${jcmb_ver}"
-    
+
     if [ "$SHOW_SSP_VERSION" = "true" ] && [ "$jcmb_type" = "SSP" ] && [ -n "$ssp_version" ]; then
       output="${output} (Detected in SSP ${ssp_version})"
     fi
-    
+
     # Add active/inactive status if enabled
     if [ "$SHOW_ACTIVE_STATUS" = "true" ]; then
-      # Determine if THIS version is active based on which daemon is loaded
       if [ -n "$ssp_ver" ] && [ "$active_daemon" = "ssp" ]; then
-        # SSP version exists and SSP daemon is loaded
         output="${output} (Active)"
       elif [ -z "$ssp_ver" ] && [ -n "$legacy_ver" ] && [ "$active_daemon" = "legacy" ]; then
-        # Only legacy exists and legacy daemon is loaded
         output="${output} (Active)"
       elif [ "$active_daemon" = "none" ]; then
-        # No daemon loaded
         output="${output} (Inactive)"
       else
-        # This is the primary but different daemon is loaded (edge case)
         output="${output} (Inactive)"
       fi
     fi
-    
+
     if [ "$SHOW_TIMESTAMPS" = "true" ]; then
       timestamp="$(get_timestamp "$jcmb_plist")"
       [ -n "$timestamp" ] && output="${output} [${timestamp}]"
     fi
-    
+
     if [ "$SHOW_MULTI_VERSION" = "true" ] && [ -n "$ssp_ver" ] && [ -n "$legacy_ver" ] && [ "$ssp_ver" != "$legacy_ver" ]; then
       legacy_type="$(classify_jcmb "$legacy_ver")"
-      
-      # Determine if secondary is active or inactive
+
       if [ "$SHOW_ACTIVE_STATUS" = "true" ]; then
         if [ "$active_daemon" = "legacy" ]; then
-          # Secondary (legacy) daemon is actually loaded - unusual!
           output="${output} (also found JCMB ${legacy_type} ${legacy_ver} - Active)"
         else
-          # Secondary is not active (normal)
           output="${output} (also found JCMB ${legacy_type} ${legacy_ver} - Inactive)"
         fi
       else
         output="${output} (also found JCMB ${legacy_type} ${legacy_ver})"
       fi
     fi
-    
+
     echo "$output"
   fi
 }
@@ -275,29 +285,29 @@ evaluate_jclw() {
   bundle_ver=""
   legacy_ver=""
   active_location=""
-  
+
   # Check which JCLW is registered in authorization database (if status enabled)
   if [ "$SHOW_ACTIVE_STATUS" = "true" ]; then
     active_location="$(check_jclw_active)"  # Returns: "bundle", "legacy", or "none"
   fi
-  
+
   # Check modern bundle location
   if [ -f "$JCLW_BUNDLE_PLIST" ]; then
     bundle_ver="$(get_ver "$JCLW_BUNDLE_PLIST")"
   fi
-  
-  # Check legacy location - ONLY use for JCLW if version ≤ 2.45.1
+
+  # Check legacy location — ONLY use for JCLW if version ≤ 2.45.1
   # After 3.0, /Applications/Jamf Connect.app/ contains ONLY JCMB (no JCLW)
   if [ -f "$LEGACY_JC_PLIST" ]; then
     temp_ver="$(get_ver "$LEGACY_JC_PLIST")"
-    
+
     # Only use as JCLW source if version ≤ 2.45.1 (combined app era)
     if [ -n "$temp_ver" ] && ! version_gt "$temp_ver" "$THRESHOLD"; then
       legacy_ver="$temp_ver"
     fi
-    # If version > 2.45.1, this path contains JCMB only - ignore for JCLW
+    # If version > 2.45.1, this path contains JCMB only — ignore for JCLW
   fi
-  
+
   # Determine primary version and type
   if [ -n "$bundle_ver" ]; then
     jclw_ver="$bundle_ver"
@@ -308,56 +318,85 @@ evaluate_jclw() {
     jclw_type="$(classify_jclw "$jclw_ver")"
     jclw_plist="$LEGACY_JC_PLIST"
   fi
-  
+
   # Output result
   if [ -z "$jclw_ver" ]; then
     echo "JCLW None NotInstalled"
   else
     output="JCLW ${jclw_type} ${jclw_ver}"
-    
+
     # Add active/inactive status if enabled
     if [ "$SHOW_ACTIVE_STATUS" = "true" ]; then
-      # Determine if THIS version is active based on which path is registered
       if [ -n "$bundle_ver" ] && [ "$active_location" = "bundle" ]; then
-        # Bundle exists and bundle is registered in authdb
         output="${output} (Active)"
       elif [ -z "$bundle_ver" ] && [ -n "$legacy_ver" ] && [ "$active_location" = "legacy" ]; then
-        # Only legacy exists and legacy is registered in authdb
         output="${output} (Active)"
       elif [ "$active_location" = "none" ]; then
-        # Nothing registered in authdb
         output="${output} (Inactive)"
       else
-        # This is the primary but different one is registered (edge case)
         output="${output} (Inactive)"
       fi
     fi
-    
+
     # Add timestamp if enabled
     if [ "$SHOW_TIMESTAMPS" = "true" ]; then
       timestamp="$(get_timestamp "$jclw_plist")"
       [ -n "$timestamp" ] && output="${output} [${timestamp}]"
     fi
-    
+
     # Add multi-version annotation if enabled
     if [ "$SHOW_MULTI_VERSION" = "true" ] && [ -n "$bundle_ver" ] && [ -n "$legacy_ver" ] && [ "$bundle_ver" != "$legacy_ver" ]; then
       legacy_type="$(classify_jclw "$legacy_ver")"
-      
-      # Determine if secondary is active or inactive
+
       if [ "$SHOW_ACTIVE_STATUS" = "true" ]; then
         if [ "$active_location" = "legacy" ]; then
-          # Secondary (legacy) is actually registered - unusual!
           output="${output} (also found JCLW ${legacy_type} ${legacy_ver} - Active)"
         else
-          # Secondary is not registered (normal)
           output="${output} (also found JCLW ${legacy_type} ${legacy_ver} - Inactive)"
         fi
       else
         output="${output} (also found JCLW ${legacy_type} ${legacy_ver})"
       fi
     fi
-    
+
     echo "$output"
+  fi
+}
+
+################################
+# 3.4 - Evaluate Self Service+
+################################
+evaluate_ssp() {
+  ssp_version="$(get_ssp_version)"
+  classic_ss_ver=""
+
+  # Check for classic Self Service — validate bundle ID to avoid false match when
+  # SSP is custom-branded to a name that collides with the classic path (PI-1077).
+  # e.g., if SSP is renamed to "Self Service.app", CLASSIC_SS_PLIST would resolve
+  # to SSP without this check.
+  if [ -f "$CLASSIC_SS_PLIST" ]; then
+    classic_bid=$(/usr/bin/defaults read "$CLASSIC_SS_PLIST" CFBundleIdentifier 2>/dev/null)
+    if [ "$classic_bid" = "$CLASSIC_SS_BUNDLE_ID" ]; then
+      classic_ss_ver="$(get_ver "$CLASSIC_SS_PLIST")"
+    fi
+    # If bundle ID doesn't match, the path points to a renamed SSP — skip it
+  fi
+
+  # Build output
+  if [ -n "$ssp_version" ]; then
+    output="Self Service+ ${ssp_version}"
+
+    # Add multi-version alert if both exist
+    if [ "$SHOW_MULTI_VERSION" = "true" ] && [ -n "$classic_ss_ver" ]; then
+      output="${output} (also found Self Service ${classic_ss_ver} - classic)"
+    fi
+
+    echo "$output"
+  elif [ -n "$classic_ss_ver" ]; then
+    # Only classic Self Service exists (unusual scenario)
+    echo "Self Service ${classic_ss_ver} (classic)"
+  else
+    echo "Self Service+ None NotInstalled"
   fi
 }
 
@@ -365,12 +404,27 @@ evaluate_jclw() {
 # 4 - Main execution
 ################################
 
+# Resolve SSP paths dynamically before evaluation.
+# Handles Jamf Pro 11.25+ custom branding where the app bundle can be renamed
+# (e.g., "SmartAsset Self Service.app") — finds it by CFBundleIdentifier instead.
+resolve_ssp_paths
+
 # Build output based on configuration
 output_lines=""
 
+if [ "$REPORT_SSP" = "true" ]; then
+  ssp_fragment="$(evaluate_ssp)"
+  output_lines="${ssp_fragment}"
+fi
+
 if [ "$REPORT_JCMB" = "true" ]; then
   jcmb_fragment="$(evaluate_jcmb)"
-  output_lines="${jcmb_fragment}"
+  if [ -n "$output_lines" ]; then
+    output_lines="${output_lines}
+${jcmb_fragment}"
+  else
+    output_lines="${jcmb_fragment}"
+  fi
 fi
 
 if [ "$REPORT_JCLW" = "true" ]; then
