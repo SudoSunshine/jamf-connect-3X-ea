@@ -9,39 +9,32 @@ A Jamf Pro Extension Attribute for tracking Jamf Connect components across legac
 
 ## Background
 
-Starting with version 3.0, Jamf Connect's architecture changed significantly. The Menu Bar component moved into Self Service+, and the Login Window became standalone. Jamf Pro's current Extension Attribute template only checks the legacy path and reports "Does not exist" for modern deployments.
+Starting with version 3.0, Jamf Connect's architecture changed significantly. The Menu Bar component moved into Self Service+, and the Login Window became standalone. Jamf Pro's built-in Extension Attribute template only checks the legacy path and reports "Does not exist" for modern deployments.
 
-This Extension Attribute detects components across both architectures.
+This EA detects components across both architectures.
 
 ## Features
 
 - Detects Self Service+ (SSP), Menu Bar (JCMB), and Login Window (JCLW) components
 - Shows active/inactive status for each component
-- Identifies multi-version scenarios from partial migrations
+- Flags multi-version scenarios from partial migrations
 - Distinguishes between SSP and Classic, Stand-alone and Classic
 - Works with all Jamf Connect versions from 2.45.1 to current
-- Detects Self Service+ by bundle identifier — unaffected by Jamf Pro 11.25 custom branding renames
+- Locates Self Service+ by bundle identifier — unaffected by Jamf Pro 11.25 custom branding renames
 - Configurable output options
 
 ## Quick Start
 
-### 1. Download the Script
+### Add to Jamf Pro
 
-```bash
-curl -O https://raw.githubusercontent.com/SudoSunshine/jamf-connect-ea/main/JamfConnect_EA.sh
-```
-
-### 2. Add to Jamf Pro
-
-1. Navigate to **Settings** → **Computer Management** → **Extension Attributes**
+1. Go to **Settings → Computer Management → Extension Attributes**
 2. Click **+ New**
 3. Configure:
-   - **Display Name**: `Jamf Connect Components`
+   - **Display Name**: `Jamf Connect SSP`
    - **Description**: `Tracks SSP, JCMB, and JCLW versions and status`
    - **Data Type**: `String`
    - **Input Type**: `Script`
-4. Paste the script contents
-5. Click **Save**
+4. Paste the script contents and save
 
 ## Output Examples
 
@@ -59,7 +52,7 @@ JCLW None NotInstalled
 
 ## Configuration
 
-Default configuration reports both components for maximum flexibility:
+Default configuration reports both components:
 
 ```bash
 REPORT_JCMB="true"              # Report Menu Bar component
@@ -68,18 +61,17 @@ SHOW_ACTIVE_STATUS="true"       # Show Active/Inactive status
 SHOW_MULTI_VERSION="true"       # Show multi-version alerts
 ```
 
-**Recommended:** Keep default settings and use separate Smart Groups to track JCMB and JCLW individually (see below).
-
-**Optional:** Additional toggles available for SSP version display, timestamps, etc.
+Keep the defaults and use separate Smart Groups for JCMB and JCLW — it's more flexible than trying to filter both in one criteria.
 
 ## Smart Group Examples
 
 ### Quick Reference
 
-**Operator:** Always use `like` (substring matching)  
-**Format:** `Jamf Connect - Version (3.X) | like | [value]`
+Always use `like` (substring matching), not `is`. The EA outputs two lines, and `is` requires an exact match of the entire field.
 
-**Best Practice:** Use short values like `JCMB SSP` instead of full strings like `JCMB SSP 3.12.0-rc.4 (Active)`. Short values work across all versions with no maintenance.
+You can't filter for both JCMB and JCLW in a single Smart Group criteria — the newline between the two output lines breaks the match. Create one Smart Group per component instead.
+
+**Best Practice:** Use short values like `JCMB SSP` rather than full strings like `JCMB SSP 3.12.0-rc.4 (Active)`. Short values remain valid across version updates with no ongoing maintenance.
 
 ### Essential Smart Groups
 
@@ -89,78 +81,61 @@ SHOW_MULTI_VERSION="true"       # Show multi-version alerts
 **4. Not Installed** → `like "NotInstalled"`
 **5. Cleanup Needed** → `like "also found"`
 
-**Tip — tracking JCMB version currency:** Since JCMB and SSP always share the same version, you can target a specific JCMB version using either `like "JCMB SSP 3.12"` or by querying the SSP version directly. Both reflect the same update event.
-
-### Why "like" Not "is"
-
-The EA outputs TWO lines (one for JCMB, one for JCLW). The "is" operator requires exact match of both lines, so it won't work. Use "like" to match individual components.
-
-**Note:** You cannot search for both components in a single criteria (e.g., `like "JCMB SSP 3.11.0 JCLW Classic 2.45.1"`). The newline between lines breaks the match. Use separate Smart Groups to track each component.
+**Tracking JCMB version currency:** JCMB and SSP always share the same version number, as JCMB is shipped inside SSP. Filtering on `like "JCMB SSP 3.12"` is equivalent to checking the SSP version — both reflect the same update event.
 
 ## Architecture Details
 
-### Jamf Connect Architecture Changes in 3.0
+### Jamf Connect 3.0 Changes
 
-**Pre-3.0 (≤ 2.45.1):** Combined app with JCMB + JCLW at `/Applications/Jamf Connect.app/`
+**Pre-3.0 (≤ 2.45.1):** JCMB and JCLW were combined in `/Applications/Jamf Connect.app/`
 
 **Post-3.0 (≥ 3.0.0):**
-- JCMB → Embedded in Self Service+ at `/Applications/Self Service+.app/.../Jamf Connect.app/`
-- JCLW → Standalone at `/Library/Security/SecurityAgentPlugins/JamfConnectLogin.bundle/`
+- JCMB → embedded in Self Service+ at `/Applications/Self Service+.app/.../Jamf Connect.app/`
+- JCLW → standalone at `/Library/Security/SecurityAgentPlugins/JamfConnectLogin.bundle/`
 
-The script detects both architectures and correctly identifies which components are present and active.
+### SSP Version = JCMB Version
 
-### SSP Version as a JCMB Proxy
-
-Because JCMB is shipped inside Self Service+, **JCMB always shares its version number with SSP** — when SSP updates, JCMB updates with it. This means you can use the SSP version as an equivalent signal for JCMB currency. If you want to know whether JCMB is up to date across your fleet, tracking the SSP version (via this EA with `REPORT_SSP="true"`, or via Jamf Pro's built-in Self Service inventory) is sufficient — you don't need to inspect the embedded JCMB path separately.
-
-**Practical tip:** A Smart Group on `like "JCMB SSP 3.12"` (or whatever your target version is) effectively identifies machines with an up-to-date Menu Bar without needing a separate SSP-focused query.
+Because JCMB is bundled inside Self Service+, both components always share a version number. When SSP updates, JCMB updates with it. Tracking the SSP version is sufficient to determine whether JCMB is current across your fleet — there is no need to inspect the embedded JCMB path separately.
 
 ### Complementary Jamf Pro EA Templates
 
-Jamf Pro includes a built-in EA template called **Jamf Connect - Connect Login Plugin Version** that tracks solely the JCLW mechanism (the login window plugin registered in the authorization database). If your only goal is monitoring JCLW, that built-in template is the simpler option.
+Jamf Pro includes a built-in EA template called **Jamf Connect - Connect Login Plugin Version** that tracks solely the JCLW mechanism. If monitoring JCLW is the only requirement, that template is the simpler option.
 
-This EA complements it by:
-- Tracking JCMB and SSP in addition to JCLW
-- Detecting active/inactive status for each component
-- Flagging multi-version scenarios from partial migrations
-- Working correctly across both pre-3.0 and post-3.0 architectures
+This EA goes further by also tracking JCMB and SSP, showing active/inactive status for each component, and flagging multi-version scenarios from partial migrations.
 
-## Jamf Pro 11.25 Custom Branding Compatibility (PI-1077)
+## Jamf Pro 11.25 Custom Branding (PI-1077)
 
-Jamf Pro 11.25 introduced custom branding for Self Service+, which allows admins to rename the application. When a macOS branding configuration exists — even with default settings — Jamf Pro sends a `brandingApplicationName` to enrolled clients during version-info check-ins, which causes Self Service+ to rename its `.app` bundle on disk.
+Jamf Pro 11.25 enabled custom branding for Self Service+. When a macOS branding configuration exists — including one created automatically on upgrade — Jamf Pro pushes a new application name to enrolled clients, which renames the Self Service+ `.app` bundle on disk. Previous versions of this EA would fail to detect SSP in these environments because they relied on the app name rather than its identity.
 
-**What breaks:** If SSP is renamed (e.g., to `SmartAsset Self Service.app` or `Self Service.app`), path-based detection fails entirely. Additionally, if SSP is renamed to `Self Service.app`, it can collide with the classic Self Service path, causing false positives.
+In environments where SSP was renamed to `Self Service.app` (the Jamf Pro 11.25 default branding name), the EA could also misidentify the renamed SSP as the classic Self Service app.
 
-**How v2.7.0 fixes it:** SSP is now located by `CFBundleIdentifier` (`com.jamf.selfserviceplus`) rather than by app name. Spotlight (`mdfind`) is queried first for speed, with a direct `/Applications` scan as fallback for environments where Spotlight is disabled or the index is stale. Classic Self Service is also validated by its bundle ID (`com.jamfsoftware.selfservice.mac`) to prevent collision with a renamed SSP.
+**v2.7.0 resolves this** by locating SSP via its bundle identifier (`com.jamf.selfserviceplus`) rather than its app name. Classic Self Service is also validated by bundle ID (`com.jamfsoftware.selfservice.mac`) to prevent the path collision.
 
-**Affected environments:** Any Jamf Pro 11.25+ environment where a macOS Self Service branding configuration was created (including automatically-created default configurations).
-
-**Workarounds if not yet on v2.7.0:**
-1. In Jamf Pro, set the branding application name back to `Self Service+`
+If you can't upgrade to v2.7.0 right away, the workarounds are:
+1. Set the branding application name back to `Self Service+` in Jamf Pro
 2. Delete the macOS branding configuration entirely
-3. Upgrade to v2.7.0
 
 ## Limitations
 
 - Detects component presence and version, but does not verify configuration validity (IdP settings, sync state)
-- Active status detection relies on system daemons/authorization database; edge cases may exist
+- Active status relies on system daemons and the authorization database — edge cases may exist in non-standard configurations
 - Requires root privileges (runs during inventory collection)
 
 ## Testing
 
-Tested with Jamf Pro 11.24.0-11.25, Jamf Connect 2.45.1-3.12.0, and macOS 13.x-15.x. See [CHANGELOG](CHANGELOG.md) for detailed testing information.
+Tested with Jamf Pro 11.24.0–11.25, Jamf Connect 2.45.1–3.12.0, and macOS 13.x–15.x. See [CHANGELOG](CHANGELOG.md) for details.
 
 ## Version History
 
-See [CHANGELOG.md](CHANGELOG.md) for complete version history.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history.
 
 ## Contributing
 
-Contributions welcome! Please test changes on multiple Jamf Connect versions and update documentation accordingly.
+Contributions welcome. Please test changes across multiple Jamf Connect versions and update the docs accordingly.
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file
+MIT — see [LICENSE](LICENSE)
 
 ## Author
 
@@ -168,6 +143,6 @@ Ellie Romero ([@SudoSunshine](https://github.com/SudoSunshine))
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/SudoSunshine/jamf-connect-ea/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/SudoSunshine/jamf-connect-ea/discussions)
+- **Issues**: [GitHub Issues](https://github.com/SudoSunshine/jamf-connect-3X-ea/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/SudoSunshine/jamf-connect-3X-ea/discussions)
 - **Mac Admins Slack**: [Join #jamf channel](https://join.slack.com/t/macadmins/shared_invite/zt-3ok3rukoj-ziZeIXzbqP~_65HM3R53Yw)
